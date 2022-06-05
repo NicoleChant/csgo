@@ -24,11 +24,12 @@ class Chameleon:
         self.scraper = cloudscraper.create_scraper()
         self.soup = None
 
-    def observe(self , store : bool = False, **kwargs) -> bool:
+    def observe(self , store : bool = False, verbose : bool = True ,**kwargs) -> bool:
         try:
             endpoint = self.get_endpoint(**kwargs)
             page = int(endpoint.split('=')[-1])
-            print(colored(f"Observing {page=}", "blue"))
+            if verbose:
+                print(colored(f"Observing {page=}", "blue"))
             url = urljoin(self.url , endpoint )
             content =self.scraper.get(url).text
             self.soup = BeautifulSoup( content, 'html.parser')
@@ -97,8 +98,8 @@ class Match:
     match_id:str = attr.ib(validator = instance_of(str))
     csmap:str = attr.ib(validator = instance_of(str))
     rank:int = attr.ib(validator = instance_of(int))
-    t_team: List[str] = attr.ib(validator = instance_of(list))
-    ct_team : List[str] = attr.ib(validator = instance_of(list))
+    t_team: List[str] = attr.ib(validator = lambda x : isinstance(x , list) and all(isinstance(member , str) for member in x))
+    ct_team : List[str] = attr.ib(validator = lambda x : isinstance(x , list) and all(isinstance(member , str) for member in x))
     date : str = attr.ib(validator = instance_of(str))
 
     def insert(self):
