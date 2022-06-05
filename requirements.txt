@@ -8,6 +8,7 @@ wheel>=0.29
 fastapi
 uvicorn
 cloudscraper
+bs4
 
 # tests/linter
 black
