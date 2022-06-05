@@ -8,18 +8,20 @@ from collections import defaultdict
 from selenium import webdriver
 from selenium.webdriver.support.wait import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+import datetime
+from typing import Union , Callable , Dict
 
 class Spider:
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.driver = webdriver.Chrome()
         self.base_url = "https://csgostats.gg"
         self.web_generator = Spider.create_web()
 
-    def get_data(self, url : str , params ):
+    def get_data(self, url : str , params ) -> Union[ str , int]:
         response = requests.get(url , params = params)
         if response.status_code == 200:
-            return response.content
+            return response.content.decode("utf-8")
         return response.status_code
 
     @staticmethod
@@ -29,7 +31,7 @@ class Spider:
             yield web
             web += 1
 
-    def crawl_all(self):
+    def crawl_all(self) -> None:
         cnt = 1
         while True:
             try:
@@ -44,15 +46,18 @@ class Spider:
 
 class PlayerSpider(Spider):
 
-    def __init__(self):
-        super().__init__(self)
+    def __init__(self) -> None:
+        super().__init__()
         self.url = self.base_url + "/leaderboards"
 
-    def crawl_page(self):
+    def crawl_page(self) -> None:
         url = self.url + f"?{next(self.web_generator)}"
         self.driver.get(url)
 
         soup = BeautifulSoup( self.driver.page_source ,  'html.parser')
+
+        with open("data/sample.html" , "w+") as file:
+            file.write(self.driver.page_source)
 
         for soupie in soup.find('div', class_ = "global-lb").find_all('div' , {"onclick":True}):
             user_id = soupie.find("div" , style = "float:left; width:25%;")\
@@ -91,19 +96,19 @@ class PlayerSpider(Spider):
 
 class TeamSpider(Spider):
 
-    def __init__(self):
-        super().__init__(self)
+    def __init__(self) -> None:
+        super().__init__()
         self.url = self.base_url + '/match'
 
-    def crawl_page(self):
+    def crawl_page(self) -> None:
         url = self.url + f"{next(self.web_generator)}"
         self.driver.get(url)
 
         soup = BeautifulSoup( self.driver.page_source , 'html.parser').find('tbody')
 
-       for soupie in soup.find_all('tr'):
+        for soupie in soup.find_all('tr'):
             teams = tuple(map(lambda x : x.attrs['title'] , soupie.find_all('img' ,
-                                                                            {"style":"margin:0 2px; border:2px solid rgba(255,255,255,0.5); border-radius:3px;"}))))
+                                                                            {"style":"margin:0 2px; border:2px solid rgba(255,255,255,0.5); border-radius:3px;"})))
             ctTeam , tTeam = teams[:5] , teams[5:]
 
 
@@ -112,7 +117,7 @@ class SQL:
 
     """csgo sqlite database connector"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.conn = None
         self.db_name = 'csgo.db'
 
@@ -120,13 +125,13 @@ class SQL:
         self.conn = sqlite3.connect( os.path.join( 'data' , self.db_name) )
         return self.conn.cursor()
 
-    def __exit__(self , *args):
+    def __exit__(self , *args) -> None:
         self.conn.commit()
         self.conn.close()
         self.conn = None
 
 
-def create_db():
+def create_db() -> None:
     """Creates SQLite database"""
 
     conn = None
@@ -158,15 +163,16 @@ def show_tables():
 
 class UserParser(type):
 
-    def __new__(cls , namespace , bases , dic):
+    def __new__(cls , namespace , bases , dic) -> None:
         return super().__new__(cls , namespace , bases , dic)
 
 
 class User(metaclass = UserParser):
 
-    __slots__ =  ["user_id" , "user_name" , "primary_weap" , "secondary_weap" , "kd" , "hs" , "win_rate" , "vx" , "rating" ]
+    __slots__ =  ["date", "user_id" , "user_name" , "primary_weap" , "secondary_weap" , "kd" , "hs" , "win_rate" , "vx" , "rating" ]
 
-    datatypes = {"user_id" : str ,
+    datatypes = {"date" : str,
+                        "user_id" : str ,
                         "user_name" : str ,
                         "primary_weap" : str ,
                         "secondary_weap" : str ,
@@ -174,7 +180,8 @@ class User(metaclass = UserParser):
                         "hs" : float ,
                         "win_rate" : float ,
                         "vx" : int ,
-                        "rating" : float }
+                        "rating" : float
+                        }
 
     def __init__(self ,**kwargs) -> None:
         for key in User.__slots__:
@@ -187,18 +194,25 @@ class User(metaclass = UserParser):
                     raise ValueError()
             else:
                 setattr(self , key , None)
+        self.date = datetime.datetime.now().strftime(r'%y-%m-%d')
         self.insert_user()
 
+    def __str__(self) -> str:
+        representation = "User\n"
+        for key , value in self.__dict__.items():
+            representation += f"{key}:{value}\n"
+        return representation
+
     @property
-    def __dict__(self):
+    def __dict__(self) -> Dict[str , Union[str , int] ]:
         return {attr : getattr(self , attr) for attr in User.__slots__}
 
     @property
-    def columns(self):
+    def columns(self) -> str:
         return ', '.join(self.__dict__.keys())
 
     @checker
-    def insert_user(self):
+    def insert_user(self) -> None:
         placeholders = ', '.join( ['?']*len(self.__dict__))
         query = f"""INSERT INTO users ({self.columns})
                                       VALUES ({placeholders});"""
@@ -207,17 +221,18 @@ class User(metaclass = UserParser):
             curs.execute(query , tuple(self.__dict__.values() ) )
 
     @checker
-    def query_users():
+    def query_users() -> None:
         with SQL() as curs:
             curs.execute("SELECT * FROM users;")
             print(curs.fetchall())
 
     @checker
     @staticmethod
-    def create_users_table():
+    def create_users_table() -> None:
         with SQL() as curs:
                 curs.execute("""CREATE TABLE users
                                         (
+                                        date VARCHAR(100) NOT NULL,
                                         user_id INTEGER NOT NULL PRIMARY KEY,
                                         user_name VARCHAR(50) NOT NULL,
                                         primary_weap VARCHAR(20),
@@ -233,7 +248,7 @@ class User(metaclass = UserParser):
 
     @checker
     @staticmethod
-    def create_matches_table():
+    def create_matches_table() -> None:
         with SQL() as curs:
             curs.execute("""CREATE TABLE matches (
                                                                                 date VARCHAR(100) NOT NULL,
@@ -251,7 +266,7 @@ class User(metaclass = UserParser):
 
     @checker
     @staticmethod
-    def truncate_users_table():
+    def truncate_users_table() -> None:
         with SQL() as curs:
             curs.execute("""DROP TABLE IF EXISTS users;""")
         print("users table has been succesfully dropped!")
@@ -262,7 +277,20 @@ def main():
     User.create_users_table()
     #show_tables()
 
-    spider = Spider()
+    datatypes = {
+            "user_id" : 24324,
+            "user_name" : "Nicole" ,
+            "primary_weap" : "some" ,
+            "secondary_weap" : "another" ,
+            "kd" : "erer" ,
+            "hs" : "0.8" ,
+            "win_rate" : "80.0" ,
+            "vx" : 10 ,
+            "rating" : 4.5
+            }
+
+    user = User(**datatypes)
+    spider = PlayerSpider()
     spider.crawl_all()
     User.query_users()
 
