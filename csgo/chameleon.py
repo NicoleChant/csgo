@@ -24,15 +24,23 @@ class Chameleon:
         self.scraper = cloudscraper.create_scraper()
         self.soup = None
 
+    @property
+    def observing(self) -> bool:
+        return self.soup is not None
+
     def observe(self , store : bool = False, verbose : bool = True ,**kwargs) -> bool:
         try:
+            page = None
             endpoint = self.get_endpoint(**kwargs)
-            page = int(endpoint.split('=')[-1])
-            if verbose:
-                print(colored(f"Observing {page=}", "blue"))
+            if "=" in endpoint:
+                page = int(endpoint.split('=')[-1])
+
             url = urljoin(self.url , endpoint )
             content =self.scraper.get(url).text
             self.soup = BeautifulSoup( content, 'html.parser')
+
+            if verbose:
+                print(colored(f"Observing page {url=}", "blue"))
 
             if store:
                 with open( os.path.join( 'data' , url + ".html") , "w+") as data:
@@ -48,7 +56,8 @@ class Chameleon:
 
     @abstractmethod
     def parse(self):
-        pass
+        if not self.observing:
+            raise Exception("Chameleon is not observing anything.")
 
 
 class CSGOChameleon(Chameleon):
@@ -66,9 +75,9 @@ class CSGOChameleon(Chameleon):
 
 class MatchesChameleon(CSGOChameleon):
 
-    def parse(self) -> Dict[str, Union[str , List[str] , int]]:
-        all_matches = []
-
+    def parse(self) -> Dict[str, str]:
+        super().parse()
+        print(self.soup)
         for soupie in self.soup.find_all('tr', {'class':'p-row js-link'}):
             match_id = re.findall( r'match/(\d+)' , soupie.attrs['onclick'])[0]
 
@@ -77,20 +86,23 @@ class MatchesChameleon(CSGOChameleon):
             rank = soupie.find('img', {'src':re.compile(r'ranks')}).attrs['title']
 
             teams = list(map(lambda x : x.attrs['title'] ,
-                             soupie.find_all('img',{'src':re.compile(r'avatars')})
+                                soupie.find_all('img',{'src':re.compile(r'avatars')})
                             )
                         )
             t_team , ct_team = teams[:5] , teams[5:]
 
             date = calculate_datetime(soupie.find('td',{'class':'nowrap'}).string.strip())
 
-            matches['match_id'] = match_id
-            matches['map'] = csmap
-            matches['date'] = date
-            matches['rank'] = rank
-            matches['players'] = {'ct_team': ct_team,
-                                              't_team': t_team}
+            matches = {  'match_id' :  match_id ,
+                                'csmap': csmap ,
+                                    'date' : date ,
+                                    'rank': rank ,
+                                    'players' : {'ct_team ': ct_team ,
+                                                    't_team': t_team}
+                            }
+
             yield matches
+
 
 @attr.s(slots=True , kw_only = True)
 class Match:
@@ -146,6 +158,7 @@ class PlayersChameleon(CSGOChameleon):
 
 
     def parse(self) -> Dict[str , str]:
+            super().parse()
             for soupie in self.soup.find_all('div',{'onclick':re.compile(r'player')}):
                 rank = soupie.find('div' , style="float:left; width:4%; padding-top:9px; color:#fff;").next_element
 
@@ -180,7 +193,7 @@ class PlayersChameleon(CSGOChameleon):
                                         }
                 yield player_data
 
-converters = {"player_name" : lambda x : x.strip('\n').strip(),
+custom_converters = {"player_name" : lambda x : x.strip('\n').strip(),
                       "rank": lambda x : int(x.lstrip('#').rstrip(' ')),
                       "kills": lambda x : int(x.strip()),
                        "deaths" : lambda x : int(x.strip()),
@@ -192,14 +205,14 @@ converters = {"player_name" : lambda x : x.strip('\n').strip(),
 class Player:
 
     player_id:int = attr.ib(converter=int , validator = instance_of(int))
-    rank: int = attr.ib(converter = converters.get("rank") , validator = instance_of(int))
-    player_name: str = attr.ib(converter = converters.get("player_name") , validator = instance_of(str))
+    rank: int = attr.ib(converter = custom_converters.get("rank") , validator = instance_of(int))
+    player_name: str = attr.ib(converter = custom_converters.get("player_name") , validator = instance_of(str))
     primary_weapon:str = attr.ib(validator = instance_of(str))
     secondary_weapon:str = attr.ib(validator = instance_of(str))
-    kills:int = attr.ib(converter = converters.get("kills") , validator = instance_of(int))
-    deaths: int = attr.ib(converter = converters.get("deaths")  , validator = instance_of(int))
-    hs: float = attr.ib(converter = converters.get("hs") , validator = instance_of(float))
-    win_rate:str = attr.ib(converter = converters.get("win_rate") , validator = instance_of(float))
+    kills:int = attr.ib(converter = custom_converters.get("kills") , validator = instance_of(int))
+    deaths: int = attr.ib(converter = custom_converters.get("deaths")  , validator = instance_of(int))
+    hs: float = attr.ib(converter = custom_converters.get("hs") , validator = instance_of(float))
+    win_rate:str = attr.ib(converter = custom_converters.get("win_rate") , validator = instance_of(float))
     onevx : int = attr.ib(converter = int , validator = instance_of(int))
     rating:float = attr.ib(converter = float)
     table_name : ClassVar[str] = 'leaderboard'
@@ -235,9 +248,11 @@ class Player:
         print(f"Table {Player.table_name} has been succesfully created!")
 
 
-class MatchesDetailsChameleon(Chameleon):
+
+class MatchesDetailsChameleon(CSGOChameleon):
 
     def parse(self):
+        super().parse()
         rounds = {'round_id' : ''}
 
         for round_ , soupie in enumerate(soup.find_all('div', class_ = 'round-info-side')):
@@ -279,6 +294,20 @@ class MatchesDetailsChameleon(Chameleon):
 
             rounds.update({round_: round_stats})
         return rounds
+
+
+class ChameleonFactory:
+
+    chameleons = {"leaderboard" : PlayersChameleon() ,
+                            "matches" :       MatchesChameleon() ,
+                            "details" : MatchesDetailsChameleon()
+                        }
+
+    def get(self , chameleon: str) -> Chameleon:
+        try:
+            return ChameleonFactory.chameleons.get(chameleon.strip())
+        except KeyError:
+            raise KeyError(f"Invalid chameleon type {chameleon=}.")
 
 
 def main():
