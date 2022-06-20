@@ -13,7 +13,7 @@ class Chameleon:
 
     url : str = attr.ib(converter = str , validator = instance_of(str))
     scraper = attr.ib(init = False , repr = False)
-    soup = attr.ib(init = False , default = None , repr = False)
+    soup : str = attr.ib(init = False , default = None , repr = False)
 
     def __attrs_post_init__(self) -> None:
         self.scraper = cloudscraper.create_scraper()
@@ -46,10 +46,11 @@ class Chameleon:
 
     @abstractmethod
     def get_endpoint(self) -> str:
+        """Fetches endpoint from corresponding url to be parsed."""
         pass
 
     @abstractmethod
-    def parse(self):
+    def parse(self) -> dict:
         if not self.observing:
             raise Exception("Chameleon is not observing anything.")
 

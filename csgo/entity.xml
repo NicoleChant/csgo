@@ -41,7 +41,7 @@
     <type label="Inet CIDR Addr" length="0" sql="CIDR" quote="'"/>
     <type label="Geometry" length="0" sql="GEOMETRY" quote="'"/>
   </group>
-</datatypes><table x="73" y="59" name="players">
+</datatypes><table x="199" y="29" name="players">
 <row name="player_id" null="1" autoincrement="1">
 <datatype>INTEGER</datatype>
 <default>NULL</default></row>
@@ -79,12 +79,10 @@
 <part>player_id</part>
 </key>
 </table>
-<table x="875" y="61" name="matches">
+<table x="809" y="44" name="matches">
 <row name="match_id" null="1" autoincrement="1">
 <datatype>INTEGER</datatype>
-<default>NULL</default><relation table="teamMatches" row="match_id" />
-<relation table="roundFinancial" row="match_id" />
-</row>
+<default>NULL</default></row>
 <row name="csmap" null="1" autoincrement="0">
 <datatype>TEXT</datatype>
 <default>NULL</default></row>
@@ -146,51 +144,7 @@
 <part>match_id</part>
 </key>
 </table>
-<table x="593" y="153" name="teamMatches">
-<row name="match_id" null="1" autoincrement="1">
-<datatype>INTEGER</datatype>
-<default>NULL</default></row>
-<row name="player_1" null="1" autoincrement="0">
-<datatype>INTEGER</datatype>
-<default>NULL</default><relation table="players" row="player_id" />
-</row>
-<row name="player_2" null="1" autoincrement="0">
-<datatype>INTEGER</datatype>
-<default>NULL</default><relation table="players" row="player_id" />
-</row>
-<row name="player_3" null="1" autoincrement="0">
-<datatype>INTEGER</datatype>
-<default>NULL</default><relation table="players" row="player_id" />
-</row>
-<row name="player_4" null="1" autoincrement="0">
-<datatype>INTEGER</datatype>
-<default>NULL</default><relation table="players" row="player_id" />
-</row>
-<row name="player_6" null="1" autoincrement="0">
-<datatype>INTEGER</datatype>
-<default>NULL</default><relation table="players" row="player_id" />
-</row>
-<row name="player_7" null="1" autoincrement="0">
-<datatype>INTEGER</datatype>
-<default>NULL</default><relation table="players" row="player_id" />
-</row>
-<row name="player_8" null="1" autoincrement="0">
-<datatype>INTEGER</datatype>
-<default>NULL</default><relation table="players" row="player_id" />
-</row>
-<row name="player_9" null="1" autoincrement="0">
-<datatype>INTEGER</datatype>
-<default>NULL</default><relation table="players" row="player_id" />
-</row>
-<row name="player_10" null="1" autoincrement="0">
-<datatype>INTEGER</datatype>
-<default>NULL</default><relation table="players" row="player_id" />
-</row>
-<key type="PRIMARY" name="">
-<part>match_id</part>
-</key>
-</table>
-<table x="1144" y="26" name="roundDetails">
+<table x="513" y="214" name="teamMatches">
 <row name="row_id" null="1" autoincrement="1">
 <datatype>INTEGER</datatype>
 <default>NULL</default></row>
@@ -198,6 +152,25 @@
 <datatype>INTEGER</datatype>
 <default>NULL</default><relation table="matches" row="match_id" />
 </row>
+<row name="player_id" null="1" autoincrement="0">
+<datatype>INTEGER</datatype>
+<default>NULL</default><relation table="players" row="player_id" />
+</row>
+<key type="PRIMARY" name="">
+<part>row_id</part>
+</key>
+</table>
+<table x="1081" y="53" name="roundDetails">
+<row name="row_id" null="1" autoincrement="1">
+<datatype>INTEGER</datatype>
+<default>NULL</default></row>
+<row name="match_id" null="1" autoincrement="0">
+<datatype>INTEGER</datatype>
+<default>NULL</default><relation table="matches" row="match_id" />
+</row>
+<row name="round" null="1" autoincrement="0">
+<datatype>INTEGER</datatype>
+<default>NULL</default></row>
 <row name="event_time" null="1" autoincrement="0">
 <datatype>TEXT</datatype>
 <default>NULL</default></row>
@@ -220,10 +193,14 @@
 <part>row_id</part>
 </key>
 </table>
-<table x="1182" y="340" name="roundFinancial">
-<row name="match_id" null="1" autoincrement="1">
+<table x="1093" y="377" name="roundFinancial">
+<row name="row_id" null="1" autoincrement="1">
 <datatype>INTEGER</datatype>
 <default>NULL</default></row>
+<row name="match_id" null="1" autoincrement="0">
+<datatype>INTEGER</datatype>
+<default>NULL</default><relation table="matches" row="match_id" />
+</row>
 <row name="equipment_value_t" null="1" autoincrement="0">
 <datatype>INTEGER</datatype>
 <default>NULL</default></row>
@@ -243,7 +220,7 @@
 <datatype>INTEGER</datatype>
 <default>NULL</default></row>
 <key type="PRIMARY" name="">
-<part>match_id</part>
+<part>row_id</part>
 </key>
 </table>
 </sql>

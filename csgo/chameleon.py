@@ -7,8 +7,8 @@ import os
 import argparse
 from csgo.parsers import *
 from csgo import basemodel
+from csgo.basemodel import Nullified
 from bs4 import BeautifulSoup
-
 
 
 class MatchChameleon(basemodel.CSGOChameleon):
@@ -17,8 +17,8 @@ class MatchChameleon(basemodel.CSGOChameleon):
         super().parse()
         for soupie in self.soup.find_all('tr', {'class':'p-row js-link'}):
             match_id = re.findall( r'match/(\d+)' , soupie.attrs['onclick'])[0]
-
             league_tag = soupie.find("td").find("img").attrs
+
             match list(filter(lambda key : key in league_tag , ["src" , "data-cfsrc"])):
                 case ["data-cfsrc"]:
                     league_tag = league_tag["data-cfsrc"]
@@ -89,31 +89,10 @@ class MatchChameleon(basemodel.CSGOChameleon):
 
 class PlayersChameleon(basemodel.CSGOChameleon):
 
-    max_iter = 10000
+    max_iter : ClassVar[int] = 10000
 
     def get_endpoint(self , page : int = 1) -> str:
         return super().get_endpoint() + f'?page={page}'
-
-    def observe_many(self) -> None:
-        page = count()
-        next(page)
-        while True:
-            cur_page = next(page)
-            print(colored(f"Retrieving page {cur_page}..." , "blue"))
-            sleep(0.5)
-            self.observe(page = cur_page)
-
-            if not self.soup.find('a' , {'href' :True , 'rel' : 'next'}):
-                break
-
-            if cur_page > PlayersChameleon.max_iter:
-                break
-
-
-            for player_data in self.parse():
-                Player( **player_data )
-            print(colored(f"Finished page {cur_page}." , "blue"))
-
 
     def parse(self) -> dict[str , str]:
             super().parse()
@@ -239,16 +218,24 @@ class MatchRoundDetailsChameleon(MatchDetailsChameleon):
         return match_stats
 
 
+class PlayerProfileChameleon(basemodel.CSGOChameleon):
+
+    def get_endpoint(self , player_id : int) -> str:
+        return super().get_endpoint() + f"/{player_id}"
+
+    def parse(self) -> dict[str,str]:
+
+
 
 class ChameleonFactory:
 
     chameleons = {"leaderboard" : PlayersChameleon() ,
-                            "match" :       MatchChameleon() ,
+                            "match_overall" :       MatchChameleon() ,
                             "round_details" : MatchRoundDetailsChameleon(),
-                            "details" : MatchDetailsChameleon()
+                            "match_players" : MatchDetailsChameleon()
                         }
 
-    def show_chameleons(self):
+    def show_chameleons(self) -> None:
         for chameleon in ChameleonFactory.chameleons.keys():
             print(chameleon)
 
@@ -257,7 +244,3 @@ class ChameleonFactory:
             return ChameleonFactory.chameleons.get(chameleon.strip())
         except KeyError:
             raise KeyError(f"Invalid chameleon type {chameleon=}.")
-
-
-if __name__ == "__main__":
-    pass

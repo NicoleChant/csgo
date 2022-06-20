@@ -66,6 +66,65 @@ class Player:
 
 
 
+"""Player Profile Parser"""
+
+@attrs.s(slots = True , kw_only = True)
+class PlayerProfile:
+
+    player_id : int = attr.ib(validator = instance_of(int) , converter = int)
+    player_name : str = attr.ib()
+    total_games : int = attr.ib()
+    victories : int
+    defeats : int
+    draws : int
+    kills : int
+    deaths : int
+    assists : int
+    headshots : int
+    total_damage : int
+    total_rounds : int
+    primary_weapon : str
+    onevsone : float
+    onevstwo: float
+    onevsthree: float
+    onevsfour: float
+    onevsfive : float
+    table_name : ClassVar[str] = "playerProfiles"
+
+    def __attrs_post_init__(self) -> None:
+        self.insert()
+
+    @validate
+    def insert(self) -> None:
+        with SQL("csgo.db") as curs:
+            curs.execute(f"""INSERT INTO {PlayerProfile.table_name} () VALUES;""", [])
+
+
+    @staticmethod
+    @validate
+    def create_table() -> None:
+        with SQL("csgo.db") as curs:
+            curs.execute(f"""CREATE TABLE IF NOT EXISTS {PlayerProfile.table_name} (
+                                                                                                player_id INTEGER NOT NULL PRIMARY KEY,
+                                                                                                player_name VARCHAR(50),
+                                                                                                total_games INT,
+                                                                                                victories INT,
+                                                                                                defeats INT,
+                                                                                                draws INT,
+                                                                                                kills INT,
+                                                                                                deaths INT,
+                                                                                                assists INT,
+                                                                                                headshots INT,
+                                                                                                total_damage INT,
+                                                                                                total_rounds INT,
+                                                                                                primary_weapon VARCHAR(50),
+                                                                                                onevsone REAL,
+                                                                                                onevstwo REAL,
+                                                                                                onevsthree REAL,
+                                                                                                onevsfour REAL,
+                                                                                                onevsfive REAL
+            );""")
+        print(colored(f"Table {table_name} has been succesfully created!", "blue"))
 
 
 """Match Class Converter"""
@@ -118,7 +177,8 @@ class Match:
         columns = ", ".join(attributes.keys())
         placeholders = ", ".join(["?"]*len(attributes))
         with SQL("csgo.db") as curs:
-            curs.execute(f"INSERT INTO matches ({columns}) VALUES ({placeholders});" , list(attributes.values()))
+            curs.execute(f"INSERT INTO {Match.table_name} ({columns}) VALUES ({placeholders});" , list(attributes.values()))
+        print(colored("Match has been added to the db." , "blue"))
 
 
     @staticmethod
@@ -150,10 +210,7 @@ class Match:
         print(colored(f"Table {Match.table_name} has been succesfully created!", "blue"))
 
 
-
-
 """Match Details Class Converter"""
-
 
 def teamConverter(team : dict[str , Union[str , None]]) -> dict[str , Union[int , None]]:
     for key in team.keys():
@@ -177,29 +234,23 @@ class MatchDetails:
         self.insert()
 
     @validate
-    def insert(self):
-        player_columns = ", ".join([f"player_{i}" for i in range(1,11,1)])
-        placeholders = ", ".join(["?"]*11)
+    def insert(self) -> None:
         with SQL("csgo.db") as cursor:
-            cursor.execute(f"""INSERT INTO {MatchDetails.table_name} (match_id, {player_columns}) VALUES ({placeholders});""" ,
-                                    [self.match_id] + [player_id for player_id in self.teams.values()])
+            cursor.executemany(f"""INSERT INTO {MatchDetails.table_name} (match_id, player_id)
+                                         VALUES (?,?);""" , [ ( self.match_id , value , ) for value in self.teams.values()] )
+        print(colored(f"Teams for match {self.match_id} have been appended to the database." , "blue"))
 
     @staticmethod
     @validate
-    def create_table():
+    def create_table() -> None:
         with SQL("csgo.db") as cursor:
             cursor.execute(f"""CREATE TABLE IF NOT EXISTS {MatchDetails.table_name} (
-                                            match_id INTEGER NOT NULL PRIMARY KEY,
-                                            player_1 INTEGER,
-                                            player_2 INTEGER,
-                                            player_3 INTEGER,
-                                            player_4 INTEGER,
-                                            player_5 INTEGER,
-                                            player_6 INTEGER,
-                                            player_7 INTEGER,
-                                            player_8 INTEGER,
-                                            player_9 INTEGER,
-                                            player_10 INTEGER
+                                            match_id INTEGER NOT NULL,
+                                            player_id INTEGER,
+                                            FOREIGN KEY (match_id)
+                                                REFERENCES {Match.table_name} (match_id),
+                                            FOREIGN KEY (player_id)
+                                                REFERENCES {Player.table_name} (player_id)
             );""")
             print(colored(f"Table {MatchDetails.table_name} has been succesfully created!", "blue"))
 
@@ -207,11 +258,13 @@ class MatchDetails:
 
 """Round Finance Class Converter"""
 
+finance_custom_converters = {}
 
 @attr.s(kw_only = True , slots = True)
 class roundFinanceParser:
 
     match_id : int = attr.ib(converter = int , validator = instance_of(int))
+    rounds : int = attr.ib(converter = int , validator = instance_of(int))
     equipment_value_t : int = attr.ib(validator = instance_of(int))
     cash_t : int = attr.ib(validator = instance_of(int))
     cash_spent_t : int = attr.ib(validator = instance_of(int))
@@ -235,13 +288,16 @@ class roundFinanceParser:
     def create_table():
         with SQL("csgo.db") as curs:
             curs.execute(f"""CREATE TABLE IF NOT EXISTS {roundFinanceParser.table_name} (
-                                                            match_id INTEGER PRIMARY KEY NOT NULL,
+                                                            match_id INTEGER NOT NULL,
+                                                            rounds INTEGER NOT NULL,
                                                             equipment_value_t INTEGER
                                                             cash_t INTEGER
                                                             cash_spent_t INTEGER,
                                                             equipment_value_ct INTEGER,
                                                             cash_ct INTEGER,
-                                                            cash_spent_ct INTEGER
+                                                            cash_spent_ct INTEGER,
+                                                            FOREIGN KEY (match_id)
+                                                                REFERENCES {Match.table_name} (match_id)
             );""")
             print(colored(f"Table {roundFinanceParser.table_name} has been succesfully created!", "blue"))
 
@@ -251,12 +307,11 @@ class roundFinanceParser:
 """Round Details Class Converter"""
 
 
-
-
 @attr.s(kw_only = True , slots = True)
 class roundDetailsParser:
 
     match_id : int = attr.ib(converter = int , validator = instance_of(int))
+    rounds : int = attr.ib(converter = int , validator = instance_of(int))
     event_time : str = attr.ib(converter = str , validator = instance_of(str))
     actors : list[str] = attr.ib(validator = instance_of(list))
     target : str = attr.ib(converter = str , validator = instance_of(str))
@@ -282,14 +337,16 @@ class roundDetailsParser:
         with SQL("csgo.db") as curs:
             curs.execute(f"""CREATE TABLE IF NOT EXISTS {roundDetailsParser.table_name} (
                                                                                             match_id INTEGER NOT NULL,
+                                                                                            rounds INTEGER NOT NULL,
                                                                                             event_time TEXT NOT NULL,
                                                                                             target TEXT,
                                                                                             weapon TEXT,
                                                                                             hs BOOLEAN,
-                                                                                            wallbang BOOLEAN);""")
+                                                                                            wallbang BOOLEAN,
+                                                                                            FOREIGN KEY (match_id)
+                                                                                                REFERENCES {Match.table_name} (match_id)
+                                                                                                );""")
             print(colored(f"Table {roundDetailsParser.table_name} has been succesfully created!", "blue"))
-
-
 
 
 """Parser Factory"""
@@ -322,8 +379,12 @@ class ParserFactory:
 
 
 
+def remove_table(table_name:str) -> None:
+    with SQL("csgo.db") as curs:
+        curs.execute(f"DROP TABLE IF EXISTS {table_name};")
+    print(colored(f"Table {table_name} has been succesfully dropped!" , "blue"))
 
-"""Creates tables when run"""
+"""Creates tables when .THIS script is run"""
 
 
 if __name__ == "__main__":
